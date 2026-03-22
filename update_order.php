@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sel->close();
                 throw new Exception("Order not found (id=$id).");
             }
-            $row = $res->fetch_assoc();
+            $order = $res->fetch_assoc();
             $sel->close();
 
             // 2) --- ROBUST RECYCLE BIN LOGIC ---
@@ -73,6 +73,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $del->bind_param("i", $id);
             $del->execute();
             $del->close();
+
+            // 4) Update Orders Table (Sync status to Archived/Deleted)
+            if ($order['order_id']) {
+                $up_orders = $conn->prepare("UPDATE orders SET status = 'Archived' WHERE id = ?");
+                $up_orders->bind_param("i", $order['order_id']);
+            } else {
+                $up_orders = $conn->prepare("UPDATE orders SET status = 'Archived' WHERE user_id = ? AND total = ? AND (status = 'Pending' OR status = 'Cancelled') ORDER BY created_at DESC LIMIT 1");
+                $up_orders->bind_param("id", $order['user_id'], $order['total']);
+            }
+            $up_orders->execute();
+            $up_orders->close();
 
             $conn->commit();
 
