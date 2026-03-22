@@ -5,31 +5,7 @@ ini_set('display_errors', 1);
 
 include 'session_check.php';
 require_once 'audit_log.php'; 
-include 'db_connect.php';
-
-// --- 2. CHECK CONNECTION & CREATE TABLE IF MISSING ---
-if (!isset($conn) || $conn->connect_error) {
-    die("❌ Connection failed: " . ($conn->connect_error ?? "Database variable missing"));
-}
-
-// Auto-fix table structure
-$tableCheck = $conn->query("SHOW TABLES LIKE 'hero_slides'");
-if ($tableCheck->num_rows == 0) {
-    $sql = "CREATE TABLE hero_slides (
-        id INT(11) AUTO_INCREMENT PRIMARY KEY,
-        file_path VARCHAR(255) NOT NULL,
-        type ENUM('image', 'video') NOT NULL DEFAULT 'image',
-        heading VARCHAR(255),
-        subtext TEXT,
-        button_text VARCHAR(50) DEFAULT 'View Menu',
-        button_link VARCHAR(255) DEFAULT 'product.php',
-        sort_order INT(11) DEFAULT 0,
-        is_active TINYINT(1) DEFAULT 1
-    )";
-    if(!$conn->query($sql)) {
-        die("Error creating table: " . $conn->error);
-    }
-}
+require_once 'config.php'; // Uses the central config.php instead of db_connect.php
 
 // --- 3. HANDLE ACTIONS ---
 $successMessage = "";
@@ -63,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_slide'])) {
     $btn_text = $_POST['button_text'] ?? '';
     $btn_link = $_POST['button_link'] ?? '';
     $sort_order = (int)($_POST['sort_order'] ?? 0);
+    $is_active = isset($_POST['is_active']) ? 1 : 0;
     
     $file_path = $_POST['current_file'] ?? '';
     $type = $_POST['current_type'] ?? 'image'; 
@@ -101,16 +78,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_slide'])) {
     if (empty($errorMessage)) {
         if ($slide_id) {
             // Update
-            $stmt = $conn->prepare("UPDATE hero_slides SET heading=?, subtext=?, button_text=?, button_link=?, sort_order=?, file_path=?, type=? WHERE id=?");
-            $stmt->bind_param("ssssissi", $heading, $subtext, $btn_text, $btn_link, $sort_order, $file_path, $type, $slide_id);
+            $stmt = $conn->prepare("UPDATE hero_slides SET heading=?, subtext=?, button_text=?, button_link=?, sort_order=?, file_path=?, type=?, is_active=? WHERE id=?");
+            $stmt->bind_param("ssssissii", $heading, $subtext, $btn_text, $btn_link, $sort_order, $file_path, $type, $is_active, $slide_id);
             $action = "updated";
         } else {
             // Insert
             if (empty($file_path)) { 
                 $errorMessage = "<i class='fas fa-exclamation-circle'></i> Please select a file to upload."; 
             } else {
-                $stmt = $conn->prepare("INSERT INTO hero_slides (heading, subtext, button_text, button_link, sort_order, file_path, type) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssssiss", $heading, $subtext, $btn_text, $btn_link, $sort_order, $file_path, $type);
+                $stmt = $conn->prepare("INSERT INTO hero_slides (heading, subtext, button_text, button_link, sort_order, file_path, type, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssissi", $heading, $subtext, $btn_text, $btn_link, $sort_order, $file_path, $type, $is_active);
                 $action = "added";
             }
         }
@@ -118,6 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_slide'])) {
         if (empty($errorMessage) && isset($stmt)) {
             if ($stmt->execute()) {
                 $successMessage = "<i class='fas fa-check-circle'></i> Slide $action successfully!";
+            $record_id = $slide_id ?: $conn->insert_id;
+            logAdminAction($conn, $_SESSION['user_id'] ?? 0, $_SESSION['fullname'] ?? 'Admin', ($action === 'updated' ? 'update_slide' : 'add_slide'), "Successfully $action hero slide #$record_id ($heading)", 'hero_slides', $record_id);
             } else {
                 $errorMessage = "<i class='fas fa-exclamation-circle'></i> Database Error: " . $stmt->error;
             }
@@ -473,6 +452,11 @@ if ($recent_inquiries_result) {
                         <input type="number" name="sort_order" id="sort_order" class="form-control" value="0">
                     </div>
 
+                    <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" name="is_active" id="is_active" checked style="width: 18px; height: 18px; accent-color: var(--primary);">
+                        <label for="is_active" style="margin-bottom: 0;">Active (Visible on Homepage)</label>
+                    </div>
+
                     <button type="submit" name="save_slide" class="btn-submit" id="submitBtn"><i class="fas fa-save"></i> Save Slide</button>
                     <button type="button" onclick="resetForm()" class="btn-cancel" id="cancelBtn" style="display:none;">Cancel Edit</button>
                 </form>
@@ -553,6 +537,7 @@ if ($recent_inquiries_result) {
             document.getElementById('subtext').value = data.subtext;
             document.getElementById('button_text').value = data.button_text;
             document.getElementById('sort_order').value = data.sort_order;
+            document.getElementById('is_active').checked = (parseInt(data.is_active) === 1);
             
             // Keep track of existing file so we don't lose it if user saves without uploading new one
             document.getElementById('current_file').value = data.file_path;

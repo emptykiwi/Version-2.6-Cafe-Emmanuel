@@ -60,6 +60,21 @@ try {
     // Get the ID of the order we just created
     $order_id = $conn->insert_id;
 
+    // 5b. ALSO INSERT INTO CART TABLE (For Admin Dashboard visibility)
+    // The Admin Dashboard uses the 'cart' table to display and manage orders.
+    $cart_json = json_encode($cart);
+    $stmt_cart = $conn->prepare("INSERT INTO cart (user_id, fullname, contact, address, cart, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'Pending', NOW())");
+    
+    if (!$stmt_cart) {
+        throw new Exception("SQL Prepare Error (Cart): " . $conn->error);
+    }
+
+    $stmt_cart->bind_param("issssd", $user_id, $fullname, $contact, $address, $cart_json, $total);
+    
+    if (!$stmt_cart->execute()) {
+        throw new Exception("SQL Execute Error (Cart): " . $stmt_cart->error);
+    }
+
     // 6. INSERT CART ITEMS INTO ORDER_ITEMS TABLE
     // Added product_name to properly log the names of the items
     $stmt_items = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, quantity, price) VALUES (?, ?, ?, ?, ?)");

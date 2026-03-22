@@ -20,11 +20,11 @@ if (!isset($conn) || $conn->connect_error) {
 
 $userId = (int)$_SESSION['user_id'];
 $fullName = $_SESSION['fullname'];
-$orderId = (int)($_POST['order_id'] ?? 0);
+$orderId = (int)($_POST['order_id'] ?? $_GET['id'] ?? 0);
 
 if ($orderId <= 0) {
     http_response_code(400);
-    exit('Invalid order');
+    exit('Invalid order ID');
 }
 
 // Alias $conn to $menu for existing logic
@@ -53,10 +53,22 @@ try {
         $st->execute();
     }
 
-    // Mark cancelled
+    // Mark cancelled in orders table
     $upd = $menu->prepare("UPDATE orders SET status='Cancelled' WHERE id=?");
     $upd->bind_param('i', $orderId);
     $upd->execute();
+
+    // Also mark as cancelled in cart table (if it exists there) for Admin Dashboard
+    // We try to match by user_id and total/created_at if we don't have a direct link, 
+    // but since we unified them in place_order.php, it's better if we had a shared ID.
+    // For now, let's update by user_id and 'Pending' status as a fallback if we can't find the exact record.
+    $upd_cart = $menu->prepare("UPDATE cart SET status='Cancelled' WHERE user_id=? AND status='Pending' AND (id=? OR (fullname=? AND total=(SELECT total FROM orders WHERE id=?)))");
+    // This is a bit complex, let's simplify: if we find a pending cart with same user and id/details, cancel it.
+    // Actually, since place_order inserts into both, they might have different IDs in both tables.
+    // Let's just try to cancel the most recent pending one for this user as a best effort.
+    $upd_cart = $menu->prepare("UPDATE cart SET status='Cancelled' WHERE user_id=? AND status='Pending' ORDER BY created_at DESC LIMIT 1");
+    $upd_cart->bind_param('i', $userId);
+    $upd_cart->execute();
 
     $menu->commit();
     

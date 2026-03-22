@@ -19,7 +19,19 @@ try {
 
         $stmt = $local_conn->prepare("UPDATE reservations SET status = ? WHERE id = ?");
         $stmt->bind_param("si", $status, $id);
-        $stmt->execute();
+        if ($stmt->execute()) {
+            // Log audit
+            require_once 'audit_log.php';
+            logAdminAction(
+                $local_conn,
+                $_SESSION['user_id'] ?? 0,
+                $_SESSION['fullname'] ?? 'Admin',
+                'reservation_status_update',
+                "Updated reservation #$id to $status",
+                'reservations',
+                $id
+            );
+        }
         header("Location: admin_reservations.php");
         exit();
     }

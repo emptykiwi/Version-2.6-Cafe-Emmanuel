@@ -118,6 +118,15 @@ if ($ap) {
             @$ap->query("ALTER TABLE `cart` ADD COLUMN `$col` $def");
         }
     }
+
+    // Ensure `revenue` table exists
+    $createRevenueSql = "CREATE TABLE IF NOT EXISTS `revenue` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `order_id` INT NOT NULL,
+      `amount` DECIMAL(10,2) NOT NULL,
+      `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    mysqli_query($conn, $createRevenueSql);
 }
 
 // OTP feature toggles
