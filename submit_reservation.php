@@ -22,8 +22,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reserve_table'])) {
     $res_guests = (int)($_POST['res_guests'] ?? 1);
     $res_notes  = mysqli_real_escape_string($conn, trim($_POST['res_notes'] ?? ''));
 
-    // 2. Comprehensive Validation
-    if (empty($res_name) || empty($res_email) || empty($res_phone) || empty($res_date) || empty($res_time)) {
+    // 2. ID Upload Handling
+    $valid_id_path = '';
+    if (isset($_FILES['valid_id_file']) && $_FILES['valid_id_file']['error'] === 0) {
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+        $filename = $_FILES['valid_id_file']['name'];
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        
+        if (in_array($ext, $allowed)) {
+            $new_filename = "ID_" . time() . "_" . $user_id . "." . $ext;
+            $upload_dir = 'uploads/reservations/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+            $target = $upload_dir . $new_filename;
+            
+            if (move_uploaded_file($_FILES['valid_id_file']['tmp_name'], $target)) {
+                $valid_id_path = $target;
+            }
+        }
+    }
+
+    // 3. Comprehensive Validation
+    if (empty($res_name) || empty($res_email) || empty($res_phone) || empty($res_date) || empty($res_time) || empty($valid_id_path)) {
         header("Location: index.php?res_status=empty#reservation");
         exit;
     }
@@ -35,10 +54,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reserve_table'])) {
         exit;
     }
 
-    // 3. Insert into Database
-    // Note: Ensure your 'reservations' table has these columns
-    $stmt = $conn->prepare("INSERT INTO reservations (user_id, res_name, res_email, res_phone, res_date, res_time, res_guests, res_notes, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
-    $stmt->bind_param("isssssis", $user_id, $res_name, $res_email, $res_phone, $res_date, $res_time, $res_guests, $res_notes);
+    // 4. Insert into Database
+    // Note: Ensure your 'reservations' table has these columns (run migrate_reservations.php)
+    $sql = "INSERT INTO reservations (user_id, res_name, res_email, res_phone, res_date, res_time, res_guests, res_notes, status, valid_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)";
+    $stmt = $conn->prepare($sql);
+    
+    if (!$stmt) {
+        // This usually happens if the database schema is not updated.
+        if (strpos($conn->error, "Unknown column 'valid_id'") !== false) {
+             die("<div style='font-family:sans-serif; max-width:600px; margin:50px auto; padding:20px; border:2px solid #A05E44; border-radius:10px; background:#fff;'>
+                    <h2 style='color:#A05E44; margin-top:0;'>Database Update Required</h2>
+                    <p>The reservation system has been upgraded, but your database needs a quick update to support Valid ID uploads.</p>
+                    <p style='text-align:center; margin:30px 0;'>
+                        <a href='migrate_reservations.php' style='background:#A05E44; color:white; padding:15px 30px; text-decoration:none; border-radius:5px; font-weight:bold;'>Click Here to Fix Database Automatically</a>
+                    </p>
+                    <p>After clicking, you can come back and complete your reservation.</p>
+                 </div>");
+        }
+        die("Database Error: " . $conn->error);
+    }
+    
+    $stmt->bind_param("isssssiss", $user_id, $res_name, $res_email, $res_phone, $res_date, $res_time, $res_guests, $res_notes, $valid_id_path);
 
     if ($stmt->execute()) {
         $reservation_id = $stmt->insert_id;

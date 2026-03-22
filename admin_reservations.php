@@ -15,25 +15,116 @@ try {
     if (isset($_GET['action']) && isset($_GET['id'])) {
         $id = (int)$_GET['id'];
         $action = $_GET['action'];
-        $status = ($action === 'confirm') ? 'confirmed' : (($action === 'cancel') ? 'cancelled' : 'pending');
+        $target_status = ($action === 'confirm') ? 'confirmed' : (($action === 'cancel') ? 'cancelled' : 'pending');
 
-        $stmt = $local_conn->prepare("UPDATE reservations SET status = ? WHERE id = ?");
-        $stmt->bind_param("si", $status, $id);
-        if ($stmt->execute()) {
-            // Log audit
-            require_once 'audit_log.php';
-            logAdminAction(
-                $local_conn,
-                $_SESSION['user_id'] ?? 0,
-                $_SESSION['fullname'] ?? 'Admin',
-                'reservation_status_update',
-                "Updated reservation #$id to $status",
-                'reservations',
-                $id
-            );
+        // Fetch reservation details first for email
+        $res_stmt = $local_conn->prepare("SELECT * FROM reservations WHERE id = ?");
+        $res_stmt->bind_param("i", $id);
+        $res_stmt->execute();
+        $res_data = $res_stmt->get_result()->fetch_assoc();
+
+        if ($res_data) {
+            require_once 'mailer.php';
+            $to = $res_data['res_email'];
+            $customerName = $res_data['res_name'];
+            $formatted_date = date("F j, Y", strtotime($res_data['res_date']));
+            $formatted_time = date("g:i A", strtotime($res_data['res_time']));
+            $guests = $res_data['res_guests'];
+            
+            $email_sent = false;
+            if ($target_status === 'confirmed') {
+                $subject = "Reservation Confirmed - Cafe Emmanuel";
+                $body = "
+                <div style='background-color: #F8F4EE; padding: 40px; font-family: \"Poppins\", Arial, sans-serif;'>
+                    <div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #E6DCD3; box-shadow: 0 10px 30px rgba(44, 30, 22, 0.05);'>
+                        <div style='background-color: #2C1E16; padding: 30px; text-align: center;'>
+                            <h1 style='color: #D4A373; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;'>Cafe Emmanuel</h1>
+                        </div>
+                        <div style='padding: 40px; color: #3A2B24; line-height: 1.6;'>
+                            <h2 style='color: #2e7d32; margin-top: 0;'>Reservation Confirmed!</h2>
+                            <p>Dear <strong>$customerName</strong>,</p>
+                            <p>Great news! Your reservation at Cafe Emmanuel has been confirmed. We have a table waiting for you.</p>
+                            
+                            <div style='background: #FDFBF7; padding: 25px; border-radius: 12px; border: 1px dashed #D4A373; margin: 25px 0;'>
+                                <p style='margin: 5px 0;'><strong>Date:</strong> $formatted_date</p>
+                                <p style='margin: 5px 0;'><strong>Time:</strong> $formatted_time</p>
+                                <p style='margin: 5px 0;'><strong>Guests:</strong> $guests Persons</p>
+                                <p style='margin: 5px 0;'><strong>Status:</strong> <span style='color: #2e7d32; font-weight: bold;'>Confirmed</span></p>
+                            </div>
+
+                            <p>We look forward to providing you with an exceptional dining experience. If you need to make any changes, please contact us.</p>
+                            <hr style='border: none; border-top: 1px solid #E6DCD3; margin: 30px 0;'>
+                            <p style='font-size: 13px; color: #756358; text-align: center;'>Guagua, Pampanga, Philippines</p>
+                        </div>
+                    </div>
+                </div>";
+                $email_sent = send_email($to, $subject, $body);
+            } elseif ($target_status === 'cancelled') {
+                $subject = "Update on your Reservation - Cafe Emmanuel";
+                $body = "
+                <div style='background-color: #F8F4EE; padding: 40px; font-family: \"Poppins\", Arial, sans-serif;'>
+                    <div style='max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #E6DCD3; box-shadow: 0 10px 30px rgba(44, 30, 22, 0.05);'>
+                        <div style='background-color: #2C1E16; padding: 30px; text-align: center;'>
+                            <h1 style='color: #D4A373; margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px;'>Cafe Emmanuel</h1>
+                        </div>
+                        <div style='padding: 40px; color: #3A2B24; line-height: 1.6;'>
+                            <h2 style='color: #c62828; margin-top: 0;'>Reservation Cancelled</h2>
+                            <p>Dear <strong>$customerName</strong>,</p>
+                            <p>We're sorry, but we are unable to accommodate your reservation request at this time.</p>
+                            
+                            <div style='background: #FDFBF7; padding: 25px; border-radius: 12px; border: 1px solid #ffebee; margin: 25px 0;'>
+                                <p style='margin: 5px 0;'><strong>Date:</strong> $formatted_date</p>
+                                <p style='margin: 5px 0;'><strong>Time:</strong> $formatted_time</p>
+                                <p style='margin: 5px 0;'><strong>Status:</strong> <span style='color: #c62828; font-weight: bold;'>Cancelled</span></p>
+                            </div>
+
+                            <p>This may be due to high demand or private events. We hope you'll try visiting us another time soon!</p>
+                            <hr style='border: none; border-top: 1px solid #E6DCD3; margin: 30px 0;'>
+                            <p style='font-size: 13px; color: #756358; text-align: center;'>Guagua, Pampanga, Philippines</p>
+                        </div>
+                    </div>
+                </div>";
+                $email_sent = send_email($to, $subject, $body);
+            } else {
+                // For other status changes (like back to pending), we don't send emails here
+                $email_sent = true; 
+            }
+
+            if ($email_sent) {
+                $stmt = $local_conn->prepare("UPDATE reservations SET status = ? WHERE id = ?");
+                $stmt->bind_param("si", $target_status, $id);
+                if ($stmt->execute()) {
+                    // Log audit
+                    require_once 'audit_log.php';
+                    logAdminAction(
+                        $local_conn,
+                        $_SESSION['user_id'] ?? 0,
+                        $_SESSION['fullname'] ?? 'Admin',
+                        'reservation_status_update',
+                        "Updated reservation #$id to $target_status",
+                        'reservations',
+                        $id
+                    );
+
+                    // --- CREATE INTERNAL NOTIFICATION ---
+                    require_once 'notifications.php';
+                    $notif_title = ($target_status === 'confirmed') ? "Reservation Confirmed" : "Reservation Update";
+                    $notif_msg = ($target_status === 'confirmed') 
+                        ? "Your reservation for " . date("M d, Y", strtotime($res_data['res_date'])) . " at " . date("g:i A", strtotime($res_data['res_time'])) . " has been confirmed!"
+                        : "We regret to inform you that your reservation request has been cancelled.";
+                    
+                    if (function_exists('createNotification')) {
+                        createNotification($local_conn, $res_data['user_id'], $id, 'reservation', $notif_title, $notif_msg);
+                    }
+                }
+                header("Location: admin_reservations.php" . (($target_status === 'confirmed') ? "?success=confirmed" : "?success=cancelled"));
+                exit();
+            } else {
+                // Email failed, do not update status and show error
+                header("Location: admin_reservations.php?error=email_failed&id=$id");
+                exit();
+            }
         }
-        header("Location: admin_reservations.php");
-        exit();
     }
 
     // --- DATA FOR HEADER ICONS ---
@@ -214,6 +305,58 @@ try {
         .btn-solid-red:hover { background-color: #b71c1c !important; box-shadow: 0 4px 10px rgba(198, 40, 40, 0.3) !important; transform: translateY(-2px) !important; }
         .btn-solid-red i { color: #ffffff !important; }
 
+        .btn-solid-blue { background-color: #1976d2 !important; color: #ffffff !important; border: 1px solid #1565c0 !important; }
+        .btn-solid-blue:hover { background-color: #1565c0 !important; box-shadow: 0 4px 10px rgba(25, 118, 210, 0.3) !important; transform: translateY(-2px) !important; }
+        .btn-solid-blue i { color: #ffffff !important; }
+
+        /* ID Preview Thumbnail */
+        .id-thumbnail {
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            transition: 0.3s;
+        }
+        .id-thumbnail:hover { transform: scale(1.1); border-color: var(--primary); }
+
+        /* Modal Styling */
+        .admin-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        .admin-modal-content {
+            background-color: var(--bg-card);
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid var(--accent);
+            width: 80%;
+            max-width: 800px;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .close-admin-modal {
+            position: absolute;
+            right: 25px;
+            top: 20px;
+            color: var(--text-muted);
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .close-admin-modal:hover { color: var(--primary); }
+
         /* Dropdowns */
         .dropdown-menu {
             display: none; position: absolute; right: 0; top: 60px;
@@ -264,12 +407,29 @@ try {
             </div>
         </header>
 
+        <?php if(isset($_GET['success'])): ?>
+            <div style="padding:15px; background:#e8f5e9; color:#2e7d32; border-radius:12px; margin-bottom:20px; font-weight:600; border:1px solid #c8e6c9;">
+                <i class="fas fa-check-circle"></i> Reservation successfully <?php echo htmlspecialchars($_GET['success']); ?>!
+            </div>
+        <?php endif; ?>
+
+        <?php if(isset($_GET['error'])): ?>
+            <div style="padding:15px; background:#ffebee; color:#c62828; border-radius:12px; margin-bottom:20px; font-weight:600; border:1px solid #ffcdd2;">
+                <i class="fas fa-exclamation-triangle"></i> 
+                <?php 
+                    if($_GET['error'] === 'email_failed') echo "Failed to send notification email. Reservation remains pending for security.";
+                    else echo "An error occurred. Please try again.";
+                ?>
+            </div>
+        <?php endif; ?>
+
         <div class="card">
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
                             <th>Guest Name</th>
+                            <th>Valid ID</th>
                             <th>Date & Time</th>
                             <th>Guests</th>
                             <th>Contact</th>
@@ -284,6 +444,13 @@ try {
                                     <td>
                                         <strong style="color:var(--secondary) !important;"><?php echo htmlspecialchars($row['res_name']); ?></strong><br>
                                         <small style="color:#3a2b24; font-size:11px;"><?php echo htmlspecialchars($row['res_notes']); ?></small>
+                                    </td>
+                                    <td>
+                                        <?php if (!empty($row['valid_id'])): ?>
+                                            <img src="<?php echo htmlspecialchars($row['valid_id']); ?>" alt="ID" class="id-thumbnail" onclick="viewReservationDetails(<?php echo htmlspecialchars(json_encode($row)); ?>)">
+                                        <?php else: ?>
+                                            <span style="font-size: 11px; color: #756358;">No ID</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <div style="font-weight:600; color:var(--primary) !important;">
@@ -301,6 +468,7 @@ try {
                                     <td><span class="status-badge status-<?php echo $row['status']; ?>"><?php echo ucfirst($row['status']); ?></span></td>
                                     <td>
                                         <div class="action-icons">
+                                            <button class="btn-solid btn-solid-blue" title="View" onclick="viewReservationDetails(<?php echo htmlspecialchars(json_encode($row)); ?>)"><i class="fas fa-eye"></i> View</button>
                                             <a href="?action=confirm&id=<?php echo $row['id']; ?>" class="btn-solid btn-solid-green" title="Confirm"><i class="fas fa-check"></i> Confirm</a>
                                             <a href="?action=cancel&id=<?php echo $row['id']; ?>" class="btn-solid btn-solid-red" title="Cancel" onclick="return confirm('Cancel this reservation?')"><i class="fas fa-times"></i> Cancel</a>
                                         </div>
@@ -315,6 +483,42 @@ try {
             </div>
         </div>
     </main>
+
+    <!-- Reservation Detail Modal -->
+    <div id="resDetailModal" class="admin-modal">
+        <div class="admin-modal-content">
+            <span class="close-admin-modal" onclick="closeAdminModal()">&times;</span>
+            <h2 style="font-family: var(--font-heading); color: var(--secondary); margin-bottom: 25px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px;">Reservation Details</h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <div id="resIdContainer">
+                    <h4 style="margin-bottom: 10px; color: var(--primary);">Valid ID Provided</h4>
+                    <img id="resValidIdImg" src="" alt="Valid ID" style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 15px; color: var(--primary);">Information</h4>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div><strong>Guest Name:</strong> <span id="resNameDetail"></span></div>
+                        <div><strong>Email:</strong> <span id="resEmailDetail"></span></div>
+                        <div><strong>Phone:</strong> <span id="resPhoneDetail"></span></div>
+                        <div><strong>Date:</strong> <span id="resDateDetail"></span></div>
+                        <div><strong>Time:</strong> <span id="resTimeDetail"></span></div>
+                        <div><strong>Guests:</strong> <span id="resGuestsDetail"></span> Persons</div>
+                        <div><strong>Status:</strong> <span id="resStatusDetail" class="status-badge"></span></div>
+                        <div style="margin-top: 10px;">
+                            <strong>Special Notes:</strong>
+                            <p id="resNotesDetail" style="margin-top: 5px; padding: 10px; background: #FDFBF7; border-radius: 6px; border-left: 3px solid var(--accent); font-size: 13px;"></p>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 30px; display: flex; gap: 10px;">
+                        <a id="confirmBtnDetail" href="" class="btn-solid btn-solid-green"><i class="fas fa-check"></i> Confirm Reservation</a>
+                        <a id="cancelBtnDetail" href="" class="btn-solid btn-solid-red" onclick="return confirm('Cancel this reservation?')"><i class="fas fa-times"></i> Cancel Reservation</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -337,6 +541,53 @@ try {
                 document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
             });
         });
+
+        function viewReservationDetails(data) {
+            document.getElementById('resNameDetail').textContent = data.res_name;
+            document.getElementById('resEmailDetail').textContent = data.res_email;
+            document.getElementById('resPhoneDetail').textContent = data.res_phone;
+            document.getElementById('resDateDetail').textContent = new Date(data.res_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            document.getElementById('resTimeDetail').textContent = data.res_time; // Better formatting could be done here
+            document.getElementById('resGuestsDetail').textContent = data.res_guests;
+            document.getElementById('resNotesDetail').textContent = data.res_notes || 'No special notes provided.';
+            
+            const statusBadge = document.getElementById('resStatusDetail');
+            statusBadge.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+            statusBadge.className = 'status-badge status-' + data.status;
+
+            if (data.valid_id) {
+                document.getElementById('resValidIdImg').src = data.valid_id;
+                document.getElementById('resIdContainer').style.display = 'block';
+            } else {
+                document.getElementById('resIdContainer').style.display = 'none';
+            }
+
+            document.getElementById('confirmBtnDetail').href = '?action=confirm&id=' + data.id;
+            document.getElementById('cancelBtnDetail').href = '?action=cancel&id=' + data.id;
+            
+            // Show/Hide buttons based on status
+            if (data.status === 'pending') {
+                document.getElementById('confirmBtnDetail').style.display = 'inline-flex';
+                document.getElementById('cancelBtnDetail').style.display = 'inline-flex';
+            } else {
+                document.getElementById('confirmBtnDetail').style.display = 'none';
+                document.getElementById('cancelBtnDetail').style.display = 'none';
+            }
+
+            const modal = document.getElementById('resDetailModal');
+            modal.style.display = "block";
+        }
+
+        function closeAdminModal() {
+            document.getElementById('resDetailModal').style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('resDetailModal');
+            if (event.target == modal) {
+                closeAdminModal();
+            }
+        }
     </script>
 </body>
 </html>

@@ -1114,7 +1114,7 @@ if ($product_res) {
             <span class="modal-close" onclick="closeModal('reservationModal')">×</span>
             <h2 class="modal-title">Table Reservation</h2>
             <p style="text-align:center; color:var(--text-muted); margin-bottom:20px;">Book your table with us.</p>
-            <form method="POST" action="submit_reservation.php">
+            <form method="POST" action="submit_reservation.php" enctype="multipart/form-data">
                 <div class="input-group">
                     <i class="fas fa-user input-icon"></i>
                     <input type="text" name="res_name" placeholder="Full Name" class="input-field" value="<?php echo htmlspecialchars($_SESSION['fullname'] ?? 'Vincent Paul'); ?>" required>
@@ -1138,6 +1138,13 @@ if ($product_res) {
                 <div class="input-group">
                     <i class="fas fa-users input-icon"></i>
                     <input type="number" name="res_guests" placeholder="Number of Guests" min="1" max="20" class="input-field" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-id-card input-icon"></i>
+                    <div style="padding: 16px 20px 16px 50px; border: 2px solid #E6DCD3; border-radius: var(--radius-sm); font-size: 0.9rem; background: #fff;">
+                        <label style="display: block; color: var(--text-muted); margin-bottom: 5px; font-weight: 500;">Upload Valid ID (Required)</label>
+                        <input type="file" name="valid_id_file" accept="image/*" required style="width: 100%;">
+                    </div>
                 </div>
                 <div class="input-group" style="margin-bottom: 0;">
                     <i class="fas fa-comment-dots input-icon" style="top: 25px;"></i>
