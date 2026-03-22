@@ -1,0 +1,132 @@
+/* Main wrapper for the sales page content */
+.sales-main-wrapper {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap; /* Allows sections to wrap onto the next line on smaller screens */
+}
+
+/* Left column: Main sales chart */
+.sales-container {
+    flex: 2 1 500px; /* Flex-grow, flex-shrink, flex-basis */
+    min-width: 350px;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Right column: container for the other two cards */
+.right-column {
+    flex: 1 1 300px; /* Flex-grow, flex-shrink, flex-basis */
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.sales-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-shrink: 0;
+}
+
+.sales-header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+}
+
+.sales-header p {
+    color: #3f3fff; 
+    font-weight: 600;
+    margin: 0;
+}
+
+.sales-legend {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.sales-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+}
+
+.sales-earned { background-color: #4b3cdb; }
+.sales-forecasted { background-color: #00cc44; }
+.sales-dropdown { padding: 6px 9px; border-radius: 2px; border: 1px solid #ccc; }
+
+/* Donut Order Time Chart */
+.sales-order-container {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.sales-order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sales-report-btn {
+    background-color:#ffffff;
+    border: 1px solid #b9b9b9;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #3f3fff;
+}
+
+.sales-date-range {
+    font-size: 14px;
+    color: #777;
+    margin: 10px 0;
+}
+
+#sales-order-chart {
+    max-width: 150px;
+    max-height: 150px;
+    margin: 20px auto; 
+}
+
+.sales-order-legend {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+}
+
+.sales-legend-item { text-align: center; }
+.sales-legend-item span { display: block; }
+.sales-legend-item small { color: #777; }
+.sales-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-bottom: 4px; }
+.dot-afternoon { background-color: #3f3fff; }
+.dot-evening { background-color: #888fff; }
+.dot-morning { background-color: #cdd3ff; }
+
+/* Most Ordered Card */
+.card {
+    background-color: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+  
+.card h2 { font-size: 1.2rem; margin-bottom: 4px; color: #333; }
+.subtext { font-size: 13px; color: #999; margin-bottom: 16px; }
+.food-list { display: flex; flex-direction: column; gap: 16px; }
+.food-item { display: flex; align-items: center; justify-content: space-between; }
+.food-item img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 12px; }
+.food-name { flex-grow: 1; color: #333; font-size: 14px; }
+.food-price { font-weight: 600; color: #666; font-size: 14px; }

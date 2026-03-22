@@ -1,0 +1,115 @@
+body {
+    font-family: "Poppins", sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+}
+
+/* Sidebar */
+.sidebar {
+    width: 30px;
+    background-color: grey;
+    padding: 10px;
+    height: 100vh;
+    position: fixed;
+    transition: width 0.3s ease;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.sidebar.expanded {
+    width: 200px;
+}
+
+.sidebar a img {
+    height: 24px;
+    width: 24px;
+    display: block;
+    margin: 10px auto;
+    cursor: pointer;
+}
+
+.sidebar-boxes {
+    margin-top: 20px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.sidebar.expanded .sidebar-boxes {
+    display: flex;
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.box {
+    background-color: #ffffff;
+    padding: 15px;
+    color: #000;
+    text-align: left;
+    border-radius: 8px;
+    font-weight: bold;
+    transition: background-color 0.2s ease;
+}
+
+.box:hover {
+    background-color: #e1e1e1;
+}
+
+/* Main Content */
+.main-content {
+    margin-left: 50px;
+    flex-grow: 1;
+    padding: 20px;
+    transition: margin-left 0.3s ease;
+}
+
+/* Header */
+.header {
+    background-color: #e9e9e9;
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    height: 50px;
+    justify-content: space-between;
+}
+
+/* Revenue Box */
+.revenue-box {
+    flex: 1;
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(1,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.revenue-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.revenue-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.revenue-amount {
+    font-size: 28px;
+    font-weight: bold;
+    color: #27ae60;
+    margin-top: 10px;
+}
+
+.growth {
+    color: #1bc98e;
+    font-size: 14px;
+    margin-left: 5px;
+}
+
