@@ -118,6 +118,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_slide'])) {
         if (empty($errorMessage) && isset($stmt)) {
             if ($stmt->execute()) {
                 $successMessage = "<i class='fas fa-check-circle'></i> Slide $action successfully!";
+            $record_id = $slide_id ?: $conn->insert_id;
+            logAdminAction($conn, $_SESSION['user_id'] ?? 0, $_SESSION['fullname'] ?? 'Admin', ($action === 'updated' ? 'update_slide' : 'add_slide'), "Successfully $action hero slide #$record_id ($heading)", 'hero_slides', $record_id);
             } else {
                 $errorMessage = "<i class='fas fa-exclamation-circle'></i> Database Error: " . $stmt->error;
             }

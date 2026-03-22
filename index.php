@@ -2,9 +2,7 @@
 session_start();
 
 // Included your specific database connection file
-require_once 'db_connect.php'; 
-
-// include 'config.php'; // Uncomment this if config.php contains other settings besides the DB connection
+require_once 'config.php';
 require_once __DIR__ . '/audit.php';
 require_once __DIR__ . '/mailer.php'; 
 
@@ -308,20 +306,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
 // ---------------------------------------------------------
 // FETCH DATA (HERO SLIDES & FULL MENU)
 // ---------------------------------------------------------
-$video_slide = null;
-$image_slides = [];
-
-$vid_sql = "SELECT * FROM hero_slides WHERE type = 'video' ORDER BY sort_order ASC LIMIT 1";
-$vid_res = $conn->query($vid_sql);
-if ($vid_res && $vid_res->num_rows > 0) { $video_slide = $vid_res->fetch_assoc(); }
-
-$img_sql = "SELECT * FROM hero_slides WHERE type = 'image' ORDER BY sort_order ASC";
-$img_res = $conn->query($img_sql);
-if ($img_res) { while ($row = $img_res->fetch_assoc()) { $image_slides[] = $row; } }
-
 $hero_slides = [];
-if ($video_slide) $hero_slides[] = $video_slide;
-foreach ($image_slides as $img) $hero_slides[] = $img;
+
+// Fetch all slides (video and image) ordered by sort_order
+$slides_sql = "SELECT * FROM hero_slides WHERE is_active = 1 ORDER BY sort_order ASC, type DESC";
+$slides_res = $conn->query($slides_sql);
+if ($slides_res) {
+    while ($row = $slides_res->fetch_assoc()) {
+        $hero_slides[] = $row;
+    }
+}
 
 if (empty($hero_slides)) {
     $hero_slides[] = [
@@ -1235,7 +1229,14 @@ if ($product_res) {
                 let slideInterval;
                 
                 function showSlide(index) {
-                    slides.forEach(s => s.classList.remove("active"));
+                    slides.forEach(s => {
+                        s.classList.remove("active");
+                        if(s.tagName === 'VIDEO') {
+                            s.pause();
+                            s.currentTime = 0;
+                            s.onended = null;
+                        }
+                    });
                     textItems.forEach(t => t.classList.remove("active"));
                     
                     slides[index].classList.add("active");
@@ -1245,14 +1246,12 @@ if ($product_res) {
                     clearTimeout(slideInterval);
 
                     if (currentElement.tagName === 'VIDEO') {
-                        currentElement.currentTime = 0;
                         currentElement.muted = true;
+                        currentElement.onended = nextSlide;
                         let playPromise = currentElement.play();
                         
                         if (playPromise !== undefined) {
-                            playPromise.then(_ => {
-                                currentElement.onended = nextSlide;
-                            }).catch(error => {
+                            playPromise.catch(error => {
                                 slideInterval = setTimeout(nextSlide, 5000);
                             });
                         }

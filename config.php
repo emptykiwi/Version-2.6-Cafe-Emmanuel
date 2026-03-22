@@ -98,18 +98,22 @@ mysqli_query($conn, $createPasswordResetsSql);
 $ap = $conn; // Alias $ap to $conn for compatibility
 
 if ($ap) {
-    // Ensure `orders` has user_id
+    // Ensure `orders` has user_id and status is VARCHAR(50)
     $chk = $ap->query("SHOW COLUMNS FROM `orders` LIKE 'user_id'");
     if ($chk && $chk->num_rows == 0) {
         @$ap->query("ALTER TABLE `orders` ADD COLUMN `user_id` INT NULL AFTER `id`");
         @$ap->query("CREATE INDEX idx_orders_user_id ON `orders` (`user_id`)");
     }
 
+    // Convert orders status to VARCHAR to support all statuses
+    @$ap->query("ALTER TABLE `orders` MODIFY COLUMN `status` VARCHAR(50) DEFAULT 'Pending'");
+
     // Ensure `cart` has necessary columns
     $cartCols = [
         'user_id'       => "INT NULL AFTER `id`",
-        'cancel_reason' => "VARCHAR(255) NULL AFTER `status`",
-        'cancelled_at'  => "TIMESTAMP NULL AFTER `cancel_reason`"
+        'order_id'      => "INT NULL AFTER `user_id` ",
+        'cancel_reason' => "VARCHAR(255) NULL AFTER `status` ",
+        'cancelled_at'  => "TIMESTAMP NULL AFTER `cancel_reason` "
     ];
     
     foreach ($cartCols as $col => $def) {
@@ -118,6 +122,39 @@ if ($ap) {
             @$ap->query("ALTER TABLE `cart` ADD COLUMN `$col` $def");
         }
     }
+
+    // Ensure `revenue` table exists
+    $createRevenueSql = "CREATE TABLE IF NOT EXISTS `revenue` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `order_id` INT NOT NULL,
+      `amount` DECIMAL(10,2) NOT NULL,
+      `date_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    mysqli_query($conn, $createRevenueSql);
+
+    // Ensure `product_sizes` table exists
+    $createSizesSql = "CREATE TABLE IF NOT EXISTS `product_sizes` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `product_id` INT NOT NULL,
+      `size_name` VARCHAR(50) NOT NULL,
+      `price` DECIMAL(10,2) NOT NULL,
+      INDEX idx_product_id (product_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    mysqli_query($conn, $createSizesSql);
+
+    // Ensure `hero_slides` table exists
+    $createHeroSql = "CREATE TABLE IF NOT EXISTS `hero_slides` (
+        `id` INT(11) AUTO_INCREMENT PRIMARY KEY,
+        `file_path` VARCHAR(255) NOT NULL,
+        `type` ENUM('image', 'video') NOT NULL DEFAULT 'image',
+        `heading` VARCHAR(255),
+        `subtext` TEXT,
+        `button_text` VARCHAR(50) DEFAULT 'View Menu',
+        `button_link` VARCHAR(255) DEFAULT 'product.php',
+        `sort_order` INT(11) DEFAULT 0,
+        `is_active` TINYINT(1) DEFAULT 1
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    mysqli_query($conn, $createHeroSql);
 }
 
 // OTP feature toggles
