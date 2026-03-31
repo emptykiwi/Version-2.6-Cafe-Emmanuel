@@ -76,20 +76,40 @@ try {
     }
 
     // 6. INSERT CART ITEMS INTO ORDER_ITEMS TABLE
-    // Added product_name to properly log the names of the items
-    $stmt_items = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, quantity, price) VALUES (?, ?, ?, ?, ?)");
-    
-    if (!$stmt_items) {
-        throw new Exception("SQL Prepare Error (Order Items): " . $conn->error);
+    // Check if the new columns exist in order_items table to avoid SQL errors
+    $column_check = $conn->query("SHOW COLUMNS FROM `order_items` LIKE 'size'");
+    $has_custom_columns = ($column_check && $column_check->num_rows > 0);
+
+    if ($has_custom_columns) {
+        // Modern Schema: Use structured columns
+        $stmt_items = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, size, temperature, addon_details, quantity, price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        if (!$stmt_items) throw new Exception("SQL Prepare Error (Modern Items): " . $conn->error);
+    } else {
+        // Legacy Schema: Fallback to appending details to the product name
+        $stmt_items = $conn->prepare("INSERT INTO order_items (order_id, product_id, product_name, quantity, price) VALUES (?, ?, ?, ?, ?)");
+        if (!$stmt_items) throw new Exception("SQL Prepare Error (Legacy Items): " . $conn->error);
     }
 
     foreach ($cart as $item) {
         $product_id = $item['id'];
-        $product_name = $item['name'] ?? '';
+        $base_name = $item['name'] ?? 'Product';
+        $size = $item['size'] ?? 'Standard';
+        $temperature = $item['temperature'] ?? 'N/A';
+        $addon = $item['selectedAddon'] ?? null;
         $quantity = $item['quantity'];
-        $price = $item['price'];
+        $price = (float)$item['price'] + (float)($item['selectedAddonPrice'] ?? 0);
 
-        $stmt_items->bind_param("iisid", $order_id, $product_id, $product_name, $quantity, $price);
+        if ($has_custom_columns) {
+            $stmt_items->bind_param("iissssid", $order_id, $product_id, $base_name, $size, $temperature, $addon, $quantity, $price);
+        } else {
+            // Format name for legacy dashboard visibility
+            $display_name = $base_name;
+            if ($size !== 'Standard') $display_name .= " ({$size})";
+            if ($temperature !== 'N/A') $display_name .= " [{$temperature}]";
+            if ($addon) $display_name .= " + {$addon}";
+
+            $stmt_items->bind_param("iisid", $order_id, $product_id, $display_name, $quantity, $price);
+        }
         
         if (!$stmt_items->execute()) {
             throw new Exception("SQL Execute Error on Product ID {$product_id}: " . $stmt_items->error);

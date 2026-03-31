@@ -136,14 +136,42 @@ include 'db_connect.php';
             color: var(--secondary); margin-bottom: 4px;
         }
 
-        .product-cat { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+        .product-cat { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px; }
         .price-text { font-weight: 600; color: var(--primary); font-size: 16px; }
+
+        .edit-options { display: flex; gap: 10px; margin-top: 8px; }
+        .edit-select {
+            padding: 4px 8px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color);
+            background: var(--bg-main); color: var(--text-dark); cursor: pointer;
+        }
+
+        .cart-pairings { margin-top: 15px; padding: 12px; background: #fff; border: 1px dashed var(--accent); border-radius: 12px; }
+        .cart-pairings-title { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; margin-bottom: 8px; }
+        .cart-pairings-grid { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+        .cart-pairing-card { min-width: 100px; text-align: center; }
+        .cart-pairing-card img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; margin-bottom: 4px; }
+        .cart-pairing-name { font-size: 10px; font-weight: 600; height: 2.4em; overflow: hidden; display: block; }
+        .cart-pairing-add { background: var(--secondary); color: #fff; border: none; font-size: 9px; padding: 3px 8px; border-radius: 10px; cursor: pointer; margin-top: 4px; }
 
         .qty-control {
             display: flex; align-items: center;
             background: var(--bg-main); border-radius: 8px;
             width: fit-content; overflow: hidden;
             border: 1px solid var(--border-color);
+            margin-bottom: 5px;
+        }
+
+        .addons-title { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-top: 10px; margin-bottom: 5px; }
+        .addons-list { display: flex; flex-direction: column; gap: 4px; }
+        .addon-item { display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer; color: var(--text-muted); }
+        .addon-checkbox {
+            appearance: none; width: 14px; height: 14px; border: 1px solid var(--primary);
+            border-radius: 50%; cursor: pointer; position: relative; transition: 0.2s;
+        }
+        .addon-checkbox:checked { background: var(--primary); }
+        .addon-checkbox:checked::after {
+            content: ''; position: absolute; top: 3px; left: 3px; width: 6px; height: 6px;
+            background: #fff; border-radius: 50%;
         }
 
         .qty-btn {
@@ -294,32 +322,102 @@ include 'db_connect.php';
 
         cart.forEach((item, index) => {
             const price = parseFloat(item.price) || 0;
+            const addonPrice = parseFloat(item.selectedAddonPrice) || 0;
             const quantity = parseInt(item.quantity) || 1;
-            const subtotal = price * quantity;
+            const subtotal = (price + addonPrice) * quantity;
             totalAmount += subtotal;
 
             const imageSrc = item.image || 'logo.png';
             const name = item.name || 'Unknown Product';
-            const category = item.size ? `Size: ${item.size}` : '';
+
+            let optionsHtml = '';
+            if (item.isDrink) {
+                optionsHtml = `
+                    <div class="edit-options">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Size</label>
+                            <select class="edit-select" onchange="updateItemOption(${index}, 'size', this.value)">
+                                <option value="Regular" ${item.size === 'Regular' ? 'selected' : ''}>Regular</option>
+                                <option value="Large" ${item.size === 'Large' ? 'selected' : ''}>Large (+₱10.00)</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <label style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Temp</label>
+                            <select class="edit-select" onchange="updateItemOption(${index}, 'temperature', this.value)">
+                                <option value="Hot" ${item.temperature === 'Hot' ? 'selected' : ''}>Hot</option>
+                                <option value="Iced" ${item.temperature === 'Iced' ? 'selected' : ''}>Iced</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            }
 
             const tr = document.createElement('tr');
+
+            let addonsHtml = '';
+            if (item.isDrink) {
+                const drinkAddons = [
+                    { name: 'Decaffeinated', price: 30 },
+                    { name: 'Espresso Shot', price: 60 },
+                    { name: 'Whipped Cream', price: 45 },
+                    { name: 'Flavored Syrup', price: 45 },
+                    { name: 'Marshmallows', price: 20 }
+                ];
+                addonsHtml = `
+                    <div class="addons-title">Customizations</div>
+                    <div class="addons-list">
+                        ${drinkAddons.map(addon => `
+                            <label class="addon-item">
+                                <input type="checkbox" class="addon-checkbox" ${item.selectedAddon === addon.name ? 'checked' : ''} onchange="toggleAddon(${index}, '${addon.name}', ${addon.price})">
+                                ${addon.name} (+₱${addon.price})
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                const foodAddons = [
+                    { name: 'Garlic Mayo', price: 15 },
+                    { name: 'BBQ Sauce', price: 15 },
+                    { name: 'Kewpie', price: 15 },
+                    { name: 'Cheese Sauce', price: 15 },
+                    { name: 'Tonkatsu Sauce', price: 15 },
+                    { name: 'Katsucurry Sauce', price: 15 }
+                ];
+                addonsHtml = `
+                    <div class="addons-title">Extra Sauce</div>
+                    <div class="addons-list">
+                        ${foodAddons.map(addon => `
+                            <label class="addon-item">
+                                <input type="checkbox" class="addon-checkbox" ${item.selectedAddon === addon.name ? 'checked' : ''} onchange="toggleAddon(${index}, '${addon.name}', ${addon.price})">
+                                ${addon.name} (+₱${addon.price})
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
             tr.innerHTML = `
                 <td>
                     <div class="product-info">
                         <img src="${imageSrc}" class="product-img" onerror="this.src='logo.png'">
                         <div>
                             <div class="product-name">${name}</div>
-                            <div class="product-cat">${category}</div>
+                            <div class="product-cat">${item.size ? item.size : ''} ${item.temperature && item.temperature !== 'N/A' ? ' | ' + item.temperature : ''}</div>
+                            ${optionsHtml}
                         </div>
                     </div>
                 </td>
-                <td class="price-text">₱${price.toFixed(2)}</td>
+                <td class="price-text">
+                    ₱${price.toFixed(2)}
+                    ${addonPrice > 0 ? `<div style="font-size: 11px; color: var(--text-muted); font-weight: normal;">+₱${addonPrice.toFixed(2)} addon</div>` : ''}
+                </td>
                 <td>
                     <div class="qty-control">
                         <button class="qty-btn" onclick="updateQty(${index}, -1)"><i class="fas fa-minus"></i></button>
                         <input type="text" class="qty-input" value="${quantity}" readonly>
                         <button class="qty-btn" onclick="updateQty(${index}, 1)"><i class="fas fa-plus"></i></button>
                     </div>
+                    ${addonsHtml}
                 </td>
                 <td class="price-text" style="color: var(--secondary);">₱${subtotal.toFixed(2)}</td>
                 <td>
@@ -354,6 +452,76 @@ include 'db_connect.php';
             saveCart(cart);
             renderCart();
         }
+    }
+
+    window.updateItemOption = function(index, type, value) {
+        const cart = getCart();
+        const item = cart[index];
+
+        if (type === 'size') {
+            item.size = value;
+            // Update price based on size (base price + 10 for Large)
+            let basePrice = parseFloat(item.basePrice);
+            if (value === 'Large') {
+                item.price = basePrice + 10;
+            } else {
+                item.price = basePrice;
+            }
+        } else if (type === 'temperature') {
+            item.temperature = value;
+        }
+
+        saveCart(cart);
+        renderCart();
+    }
+
+    const pairingsData = {
+        "Iced Americano": [
+            { id: 43, name: "Clubhouse Sandwich", price: 180, image: "uploads/1774024873_square-clubhouse-sandwich.jpg" },
+            { id: 44, name: "Aligue Pizza", price: 350, image: "uploads/1774075604_Aligue Pizza.jpg" }
+        ],
+        "Caramel Latte": [
+            { id: 43, name: "Mozzarella Sticks", price: 120, image: "uploads/1774075734_Mozzarella Cheese Stick.jpg" },
+            { id: 46, name: "Tonkatsu", price: 280, image: "uploads/69846200f0cc5_carbonara.png" }
+        ],
+        "Strawberry Matcha": [
+            { id: 45, name: "Carbonara", price: 260, image: "uploads/69846200f0cc5_carbonara.png" },
+            { id: 44, name: "Aligue Pizza", price: 350, image: "uploads/1774075604_Aligue Pizza.jpg" }
+        ],
+        "Pecan Praline Latte": [
+            { id: 43, name: "Clubhouse Sandwich", price: 180, image: "uploads/1774024873_square-clubhouse-sandwich.jpg" }
+        ],
+        "Roasted Almond Matcha": [
+            { id: 46, name: "Carbonara", price: 260, image: "uploads/69846200f0cc5_carbonara.png" }
+        ],
+        "Banana Smoothie": [
+            { id: 43, name: "Clubhouse Sandwich", price: 180, image: "uploads/1774024873_square-clubhouse-sandwich.jpg" }
+        ],
+        "Classico": [
+            { id: 45, name: "Carbonara", price: 260, image: "uploads/69846200f0cc5_carbonara.png" }
+        ],
+        "Refresher": [
+            { id: 44, name: "Aligue Pizza", price: 350, image: "uploads/1774075604_Aligue Pizza.jpg" }
+        ]
+    };
+
+
+    window.toggleAddon = function(index, addonName, addonPrice) {
+        const cart = getCart();
+        const item = cart[index];
+
+        if (item.selectedAddon === addonName) {
+            // Already selected, untick it
+            item.selectedAddon = null;
+            item.selectedAddonPrice = 0;
+        } else {
+            // Select new one (this handles "only choose 1" by overriding)
+            item.selectedAddon = addonName;
+            item.selectedAddonPrice = addonPrice;
+        }
+
+        saveCart(cart);
+        renderCart();
     }
 
     function validateCheckout() {
